@@ -8,7 +8,6 @@
 // @grant        none
 // @updateURL    https://github.com/expo2025-auto/Kansai-MaaS-auto/raw/refs/heads/main/change-auto.js
 // @downloadURL  https://github.com/expo2025-auto/Kansai-MaaS-auto/raw/refs/heads/main/change-auto.js
-// @homepageURL  https://github.com/expo2025-auto/Kansai-MaaS-auto
 // @supportURL   https://github.com/expo2025-auto/Kansai-MaaS-auto/issues
 // ==/UserScript==
 
