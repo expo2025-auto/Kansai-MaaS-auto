@@ -347,35 +347,65 @@
     return null;
   }
 
+  function getErrorToast(){
+    const toastSelectors = [
+      '.MuiSnackbar-root',
+      '.MuiSnackbarContent-root',
+      '.MuiAlert-root',
+      '[role="alert"]'
+    ];
+    for (const selector of toastSelectors){
+      const nodes = Array.from(document.querySelectorAll(selector)).filter(isVisible);
+      for (const node of nodes){
+        const text = (node.innerText || node.textContent || '').trim();
+        if (text.includes('エラーが発生しました')) return node;
+      }
+    }
+    const heading = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6')).find(el=>{
+      if (!isVisible(el)) return false;
+      const text = (el.innerText || el.textContent || '').trim();
+      return text === 'エラーが発生しました';
+    });
+    return heading || null;
+  }
+
+  async function recoverAfterErrorIndicator({ waitForDialogToDisappear = false } = {}){
+    if (waitForDialogToDisappear){
+      for (let i=0;i<30;i++){
+        if (!getErrorDialog()) break;
+        await sleep(100);
+      }
+    }
+    await sleep(200);
+
+    state.phase = 'search'; saveState();
+
+    setRestartFlag();
+    scheduleForceNavigateToMain(MAIN_URL);
+
+    setTimeout(()=>{ try { location.replace(MAIN_URL); } catch {} }, 2000);
+
+    await tryRobustBackNavigation(4);
+
+    await sleep(400);
+    location.replace(MAIN_URL);
+  }
+
   async function handleIfErrorDialog(){
+    const toast = getErrorToast();
+    if (toast){
+      setStatus('エラートースト→戻る強制→復帰URLへ遷移→再探索');
+      await recoverAfterErrorIndicator({ waitForDialogToDisappear: false });
+      return true;
+    }
+
     const info = getErrorDialog();
     if (!info) return false;
 
     setStatus('エラー→閉じる→戻る強化→復帰URLへ遷移→再探索');
     if (info.closeBtn) await clickWithHumanDelay(info.closeBtn);
 
-    // ダイアログ消滅待ち
-    for (let i=0;i<30;i++){
-      if (!getErrorDialog()) break;
-      await sleep(100);
-    }
-    await sleep(200);
-
-    state.phase = 'search'; saveState();
-
-    // 再開フラグ＋強制遷移フラグを立ててから、戻る系アクション
-    setRestartFlag();                 // ← リロード後に running/phase=search で再開する合図
-    scheduleForceNavigateToMain(MAIN_URL);
-
-    // ページが切り替わらなくても一定時間後に強制遷移する保険
-    setTimeout(()=>{ try { location.replace(MAIN_URL); } catch {} }, 2000);
-
-    await tryRobustBackNavigation(4);
-
-    // URLが異なる/戻れない等に備え、確実に一覧タブへ
-    await sleep(400);
-    location.replace(MAIN_URL);
-    // 以後の処理はページ遷移で途切れる前提
+    await recoverAfterErrorIndicator({ waitForDialogToDisappear: true });
     return true;
   }
 
