@@ -17,10 +17,7 @@
   /********** 定数 **********/
   const STATE_KEY = 'km_auto_rescheduler_state_v1';
   const RESTART_FLAG_KEY = 'km_auto_rescheduler_restart_flag_v1';
-  const MAIN_URL = `${location.origin}/ticket-managements?tab=in_use`; // 強制復帰先
   const RESTART_FLAG_TTL_MS = 60_000; // 再開フラグの寿命（保険）
-  const FORCE_NAV_FLAG_KEY = 'km_auto_rescheduler_force_nav_v1';
-  const FORCE_NAV_TTL_MS = 30_000;
   const BACK_BUTTON_TEXTS = ['戻る', '予約一覧に戻る', '予約一覧へ戻る', '一覧へ戻る', 'チケット一覧へ戻る'];
   const BACK_ICON_SELECTORS = ['.ic_button_back-root'];
 
@@ -45,15 +42,6 @@
   const rand = (a,b)=>Math.random()*(b-a)+a;
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const isVisible = (el)=>{ const r = el?.getBoundingClientRect?.(); return !!(r && r.width>0 && r.height>0); };
-  const samePathAndQuery = (a,b)=>{
-    try {
-      const ua = new URL(a, location.origin);
-      const ub = new URL(b, location.origin);
-      return ua.origin === ub.origin && ua.pathname === ub.pathname && ua.search === ub.search;
-    } catch {
-      return a === b;
-    }
-  };
   const isDisabledLike = (el)=> el?.hasAttribute('disabled')
       || el?.getAttribute('aria-disabled') === 'true'
       || /\bMui-disabled\b/.test(el?.className||'');
@@ -216,31 +204,6 @@
     } catch { return null; }
   }
   function clearRestartFlag(){ sessionStorage.removeItem(RESTART_FLAG_KEY); }
-
-  function scheduleForceNavigateToMain(targetUrl = MAIN_URL){
-    const payload = { targetUrl, ts: Date.now() };
-    try { sessionStorage.setItem(FORCE_NAV_FLAG_KEY, JSON.stringify(payload)); }
-    catch {}
-  }
-  function consumeForceNavigateFlag(){
-    try {
-      const raw = sessionStorage.getItem(FORCE_NAV_FLAG_KEY);
-      if (!raw) return null;
-      sessionStorage.removeItem(FORCE_NAV_FLAG_KEY);
-      const obj = JSON.parse(raw);
-      if (!obj || typeof obj.ts !== 'number') return null;
-      if (Date.now() - obj.ts > FORCE_NAV_TTL_MS) return null;
-      return obj;
-    } catch { return null; }
-  }
-  function maybeForceNavigateToMain(){
-    const info = consumeForceNavigateFlag();
-    if (!info || typeof info.targetUrl !== 'string' || !info.targetUrl) return false;
-    if (samePathAndQuery(info.targetUrl, location.href)) return false;
-    try { location.replace(info.targetUrl); }
-    catch {}
-    return true;
-  }
 
   /********** 左下UI **********/
   function createPanel(){
@@ -441,14 +404,12 @@
     state.phase = 'search'; saveState();
 
     setRestartFlag();
-    scheduleForceNavigateToMain(MAIN_URL);
+    const navigated = await tryRobustBackNavigation(4);
 
-    setTimeout(()=>{ try { location.replace(MAIN_URL); } catch {} }, 2000);
-
-    await tryRobustBackNavigation(4);
-
-    await sleep(400);
-    location.replace(MAIN_URL);
+    if (!navigated){
+      await sleep(400);
+      safeReload();
+    }
   }
 
   async function handleIfErrorDialog(){
@@ -686,8 +647,6 @@
       kickMainLoop();
     }
   }
-
-  if (maybeForceNavigateToMain()) return;
 
   createPanel();
   // 再開フラグがあれば最優先で再開
