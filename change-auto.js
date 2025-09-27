@@ -59,6 +59,38 @@
       || /\bMui-disabled\b/.test(el?.className||'');
   async function clickWithHumanDelay(el){ try{ el?.scrollIntoView({block:'center'});}catch{} await sleep(rand(500,1000)); el?.click(); }
   async function waitForReady(){ if (document.readyState === 'complete') return; await new Promise(res=>window.addEventListener('load',res,{once:true})); }
+  const getVisibleHeading = (texts)=>{
+    const tags = ['h1','h2','h3','h4','h5','h6'];
+    for (const tag of tags){
+      const nodes = Array.from(document.querySelectorAll(tag)).filter(isVisible);
+      for (const node of nodes){
+        const text = (node.innerText || node.textContent || '').trim();
+        if (texts.some(t=>text.includes(t))) return node;
+      }
+    }
+    return null;
+  };
+  function isNormalAvailabilitySearchScreen(){
+    const dateHeading = getVisibleHeading(['利用予定日']);
+    const datePickerRoot = dateHeading
+      ? dateHeading.parentElement?.querySelector('.rs-picker, [class*="DatePicker_root"], .DatePicker_root__4rjKw')
+      : document.querySelector('.rs-picker, [class*="DatePicker_root"], .DatePicker_root__4rjKw');
+    const visibleDatePicker = datePickerRoot && isVisible(datePickerRoot);
+
+    const timeHeading = getVisibleHeading(['利用種別','時間帯']);
+    const stockSelect = document.querySelector('#mui-component-select-stockId');
+    const visibleStockSelect = stockSelect && isVisible(stockSelect);
+
+    return Boolean(dateHeading && visibleDatePicker && timeHeading && visibleStockSelect);
+  }
+  async function waitForNormalAvailabilitySearchScreen(timeout=5000){
+    const t0 = performance.now();
+    while (performance.now()-t0 < timeout){
+      if (isNormalAvailabilitySearchScreen()) return true;
+      await sleep(150);
+    }
+    return isNormalAvailabilitySearchScreen();
+  }
   function waitForElement(selector, timeout=10000, mustBeVisible=true){
     return new Promise((resolve,reject)=>{
       const t0 = performance.now();
@@ -441,6 +473,18 @@
   /********** ステップ群 **********/
   async function step_search(){
     setStatus('探索'); setPhaseBadge();
+
+    const hasNormalScreen = await waitForNormalAvailabilitySearchScreen(5000);
+    if (!hasNormalScreen){
+      setStatus('探索画面が表示されていない→戻る/更新');
+      const backed = await tryRobustBackNavigation(2);
+      if (!backed){
+        await sleep(400);
+        safeReload();
+        await sleep(2500);
+      }
+      return;
+    }
 
     // 1) セレクト本体
     let selectDiv = null;
