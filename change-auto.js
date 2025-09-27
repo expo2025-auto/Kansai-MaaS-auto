@@ -70,18 +70,46 @@
     }
     return null;
   };
+  function isInsideDialog(el){
+    return !!el?.closest?.('[role="dialog"], .MuiDialog-root, .MuiModal-root');
+  }
+
+  function findVisibleElement(selectors){
+    for (const selector of selectors){
+      const candidates = Array.from(document.querySelectorAll(selector));
+      for (const el of candidates){
+        if (isVisible(el) && !isInsideDialog(el)) return el;
+      }
+    }
+    return null;
+  }
+
   function isNormalAvailabilitySearchScreen(){
     const dateHeading = getVisibleHeading(['利用予定日']);
-    const datePickerRoot = dateHeading
-      ? dateHeading.parentElement?.querySelector('.rs-picker, [class*="DatePicker_root"], .DatePicker_root__4rjKw')
-      : document.querySelector('.rs-picker, [class*="DatePicker_root"], .DatePicker_root__4rjKw');
-    const visibleDatePicker = datePickerRoot && isVisible(datePickerRoot);
-
     const timeHeading = getVisibleHeading(['利用種別','時間帯']);
-    const stockSelect = document.querySelector('#mui-component-select-stockId');
-    const visibleStockSelect = stockSelect && isVisible(stockSelect);
 
-    return Boolean(dateHeading && visibleDatePicker && timeHeading && visibleStockSelect);
+    const datePickerRoot = findVisibleElement([
+      '.rs-picker',
+      '[class*="DatePicker_root"]',
+      '.DatePicker_root__4rjKw',
+      'input.rs-input[placeholder*="日程"]',
+      'input[aria-haspopup="dialog"][id^="rs-"]'
+    ]);
+
+    const stockSelect = findVisibleElement([
+      '#mui-component-select-stockId',
+      '.MuiSelect-root[aria-labelledby="mui-component-select-stockId"]',
+      '.MuiSelect-root .MuiSelect-select',
+      '[role="combobox"][aria-haspopup="listbox"]'
+    ]);
+
+    if (!datePickerRoot || !stockSelect) return false;
+
+    // 見出しが無い特殊ケースでも、両要素が見えていれば正常画面とみなす
+    if (!dateHeading) return Boolean(timeHeading || stockSelect);
+    if (!timeHeading) return Boolean(dateHeading && datePickerRoot);
+
+    return true;
   }
   async function waitForNormalAvailabilitySearchScreen(timeout=5000){
     const t0 = performance.now();
