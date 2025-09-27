@@ -22,6 +22,7 @@
   const FORCE_NAV_FLAG_KEY = 'km_auto_rescheduler_force_nav_v1';
   const FORCE_NAV_TTL_MS = 30_000;
   const BACK_BUTTON_TEXTS = ['戻る', '予約一覧に戻る', '予約一覧へ戻る', '一覧へ戻る', 'チケット一覧へ戻る'];
+  const BACK_ICON_SELECTORS = ['.ic_button_back-root'];
 
   /********** 状態 **********/
   const defaultState = {
@@ -72,6 +73,17 @@
   function queryButtonByText(text){ return Array.from(document.querySelectorAll('button,[role="button"]')).filter(isVisible).find(b => (b.innerText||'').trim() === text) || null; }
 
   async function clickBackLikeButton(){
+    for (const selector of BACK_ICON_SELECTORS){
+      const icons = Array.from(document.querySelectorAll(selector)).filter(isVisible);
+      for (const icon of icons){
+        const clickable = icon.closest('button,[role="button"],a');
+        const target = (clickable && isVisible(clickable) && !isDisabledLike(clickable)) ? clickable : icon;
+        if (!isDisabledLike(target)){
+          await clickWithHumanDelay(target);
+          return true;
+        }
+      }
+    }
     for (const text of BACK_BUTTON_TEXTS){
       const btn = queryButtonByText(text);
       if (btn && !isDisabledLike(btn)){
