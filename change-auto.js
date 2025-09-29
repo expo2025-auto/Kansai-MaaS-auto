@@ -29,9 +29,22 @@
     phase: 'search',             // 'search' | 'finalize'
     laterAllowedHours: [20,21],  // 後ろにずらす時に対象とする時刻（20/21）
     lastReloadAt: 0,
-    minReloadIntervalMs: 7000
+    minReloadIntervalMs: 7000,
+    useDetailedTime: false,
+    detailedHour: 10,
+    detailedMinute: 0
   };
   let state = loadState();
+  if (!Number.isFinite(Number(state.detailedHour))) {
+    state.detailedHour = Number(state.baseHour) || 0;
+  } else {
+    state.detailedHour = Math.min(23, Math.max(0, Math.floor(Number(state.detailedHour))));
+  }
+  if (!Number.isFinite(Number(state.detailedMinute))) {
+    state.detailedMinute = 0;
+  } else {
+    state.detailedMinute = Math.min(59, Math.max(0, Math.floor(Number(state.detailedMinute))));
+  }
   function loadState() {
     try { return Object.assign({}, defaultState, JSON.parse(localStorage.getItem(STATE_KEY) || '{}')); }
     catch { return { ...defaultState }; }
@@ -41,6 +54,11 @@
   /********** 汎用 **********/
   const rand = (a,b)=>Math.random()*(b-a)+a;
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  const clampInt = (value,min,max)=>{
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n)) return min;
+    return Math.min(max, Math.max(min, n));
+  };
   const isVisible = (el)=>{ const r = el?.getBoundingClientRect?.(); return !!(r && r.width>0 && r.height>0); };
   const isDisabledLike = (el)=> el?.hasAttribute('disabled')
       || el?.getAttribute('aria-disabled') === 'true'
@@ -241,15 +259,39 @@
     function renderTimes(){
       const times = state.direction==='earlier'?[9,10,11,12]:[19,20,21,22]; // -19 センチネル設計は別途
       const box = root.querySelector('#km-time-list');
+      const detailHour = clampInt(state.detailedHour, 0, 23);
+      const detailMinute = clampInt(state.detailedMinute, 0, 59);
+      if (detailHour !== state.detailedHour || detailMinute !== state.detailedMinute) {
+        state.detailedHour = detailHour;
+        state.detailedMinute = detailMinute;
+        saveState();
+      }
       box.innerHTML = `
         <div>現在の予約時刻</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
           ${times.map(h=>`
             <label style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.08);padding:4px 6px;border-radius:6px;cursor:pointer;">
-              <input type="radio" name="km-base-hour" value="${h}" ${Number(state.baseHour)===h?'checked':''}>
+              <input type="radio" name="km-base-hour" value="${h}" ${(!state.useDetailedTime && Number(state.baseHour)===h)?'checked':''} ${state.useDetailedTime?'disabled':''}>
               <span>${h}時</span>
             </label>
           `).join('')}
+        </div>
+
+        <div style="margin-top:10px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="km-use-detailed-time" ${state.useDetailedTime?'checked':''}>
+            <span>詳細な時間を設定する</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;${state.useDetailedTime?'':'opacity:0.5;'}">
+            <label style="display:flex;align-items:center;gap:4px;">
+              <input type="number" id="km-detail-hour" min="0" max="23" value="${detailHour}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
+              <span>時</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;">
+              <input type="number" id="km-detail-minute" min="0" max="59" value="${detailMinute}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
+              <span>分</span>
+            </label>
+          </div>
         </div>
 
         ${state.direction==='later' ? `
@@ -265,7 +307,14 @@
       `;
       // 基準時刻
       box.querySelectorAll('input[name="km-base-hour"]').forEach(r=>{
-        r.addEventListener('change',()=>{ state.baseHour = Number(r.value); saveState(); });
+        r.addEventListener('change',()=>{
+          state.baseHour = Number(r.value);
+          if (state.useDetailedTime){
+            state.useDetailedTime = false;
+          }
+          saveState();
+          renderTimes();
+        });
       });
       // 後ろ対象時刻
       box.querySelectorAll('.km-later-hour').forEach(ch=>{
@@ -276,6 +325,39 @@
           saveState();
         });
       });
+      const detailToggle = box.querySelector('#km-use-detailed-time');
+      const detailHourInput = box.querySelector('#km-detail-hour');
+      const detailMinuteInput = box.querySelector('#km-detail-minute');
+      if (detailToggle){
+        detailToggle.addEventListener('change',()=>{
+          state.useDetailedTime = detailToggle.checked;
+          if (state.useDetailedTime && (state.detailedHour === null || Number.isNaN(Number(state.detailedHour)))){
+            state.detailedHour = Number(state.baseHour) || 0;
+          }
+          saveState();
+          renderTimes();
+        });
+      }
+      if (detailHourInput){
+        detailHourInput.addEventListener('change',()=>{
+          const v = clampInt(detailHourInput.value,0,23);
+          detailHourInput.value = v;
+          if (state.detailedHour !== v){
+            state.detailedHour = v;
+            saveState();
+          }
+        });
+      }
+      if (detailMinuteInput){
+        detailMinuteInput.addEventListener('change',()=>{
+          const v = clampInt(detailMinuteInput.value,0,59);
+          detailMinuteInput.value = v;
+          if (state.detailedMinute !== v){
+            state.detailedMinute = v;
+            saveState();
+          }
+        });
+      }
     }
 
     function syncUI(){
@@ -435,11 +517,46 @@
   function parseHourFromText(t){
     if (!t) return null;
     const s = toHalfWidthDigits(t).replace(/\s/g,'');
-    const m = s.match(/(\d{1,2})(?::\d{2})?時台?|(\d{1,2})時台/);
+    let m = s.match(/(\d{1,2})[：:](\d{2})/);
+    if (m){
+      const num = Number(m[1]);
+      if (Number.isInteger(num) && num>=0 && num<=23) return num;
+    }
+    m = s.match(/(\d{1,2})(?::\d{2})?時台?|(\d{1,2})時台/);
     if (m){
       const num = Number(m[1] || m[2]);
       if (Number.isInteger(num) && num>=0 && num<=23) return num;
     }
+    return null;
+  }
+  function parseStartTimeFromText(t){
+    if (!t) return null;
+    const s = toHalfWidthDigits(t).replace(/\s/g,'');
+    let m = s.match(/(\d{1,2})[：:](\d{2})/);
+    if (m){
+      const hour = Number(m[1]);
+      const minute = Number(m[2]);
+      if (Number.isInteger(hour) && hour>=0 && hour<=23 && Number.isInteger(minute) && minute>=0 && minute<=59){
+        return { hour, minute };
+      }
+    }
+    m = s.match(/(\d{1,2})時(\d{1,2})分?/);
+    if (m){
+      const hour = Number(m[1]);
+      const minute = Number(m[2]);
+      if (Number.isInteger(hour) && hour>=0 && hour<=23 && Number.isInteger(minute) && minute>=0 && minute<=59){
+        return { hour, minute };
+      }
+    }
+    m = s.match(/(\d{1,2})時/);
+    if (m){
+      const hour = Number(m[1]);
+      if (Number.isInteger(hour) && hour>=0 && hour<=23){
+        return { hour, minute: 0 };
+      }
+    }
+    const hour = parseHourFromText(t);
+    if (hour !== null) return { hour, minute: 0 };
     return null;
   }
   function listTimeOptions(menuRoot){
@@ -454,7 +571,9 @@
                     || /line-through/.test(el.className);
       const hour = parseHourFromText(text);
       const isWheel = /車いす/.test(text); // 車いすは除外
-      results.push({ el, text, hour, disabled, isWheel });
+      const startTime = parseStartTimeFromText(text);
+      const startMinutes = startTime ? (startTime.hour*60 + startTime.minute) : (hour !== null ? hour*60 : null);
+      results.push({ el, text, hour, disabled, isWheel, startMinutes });
     }
     return results;
   }
@@ -494,34 +613,51 @@
     const opts = listTimeOptions(menuRoot)
       .filter(o => o.hour !== null && !o.disabled && !o.isWheel);
 
-    const base = Number(state.baseHour);
-    const pre19 = base < 0; // -19 等のセンチネル
+    const detailHour = clampInt(state.detailedHour, 0, 23);
+    const detailMinute = clampInt(state.detailedMinute, 0, 59);
+    const detailMode = Boolean(state.useDetailedTime);
+    const baseHourForCompare = detailMode ? detailHour : Number(state.baseHour);
+    const base = Number(baseHourForCompare);
+    const pre19 = !detailMode && base < 0; // -19 等のセンチネル
     const allowedLater = Array.isArray(state.laterAllowedHours)
       ? state.laterAllowedHours.map(Number)
       : [];
+    const detailedEnabled = detailMode;
+    const baseTimeMinutes = detailHour * 60 + detailMinute;
+    const detailCapable = detailedEnabled && opts.some(o => typeof o.startMinutes === 'number');
 
-    let candidates = opts.filter(o => o.hour !== base);
+    let candidates = opts;
 
-    // 後ろにずらす時の時刻制限
-    if (state.direction === 'later'){
-      // -19 のときは 20時以上だけ
-      if (pre19) candidates = candidates.filter(o => o.hour >= 20);
-      // 20/21の個別指定（チェックが1つ以上あれば適用）
-      if (allowedLater.length > 0) {
-        candidates = candidates.filter(o => allowedLater.includes(o.hour));
+    if (detailCapable){
+      candidates = candidates.filter(o => typeof o.startMinutes === 'number');
+      if (state.direction === 'later'){
+        if (pre19) candidates = candidates.filter(o => o.hour >= 20);
+        if (allowedLater.length > 0) {
+          candidates = candidates.filter(o => allowedLater.includes(o.hour));
+        }
+        candidates = candidates
+          .filter(o => o.startMinutes > baseTimeMinutes)
+          .sort((a,b)=> b.startMinutes - a.startMinutes);
+      } else {
+        candidates = candidates
+          .filter(o => o.startMinutes < baseTimeMinutes)
+          .sort((a,b)=> a.startMinutes - b.startMinutes);
       }
-    }
-
-    if (state.direction === 'earlier'){
-      // 前＝最も早い（min）
-      candidates = candidates
-        .filter(o => o.hour < base)
-        .sort((a,b)=> a.hour - b.hour);
     } else {
-      // 後＝最も遅い（max）
-      candidates = candidates
-        .filter(o => o.hour > base)
-        .sort((a,b)=> b.hour - a.hour);
+      candidates = candidates.filter(o => o.hour !== base);
+      if (state.direction === 'later'){
+        if (pre19) candidates = candidates.filter(o => o.hour >= 20);
+        if (allowedLater.length > 0) {
+          candidates = candidates.filter(o => allowedLater.includes(o.hour));
+        }
+        candidates = candidates
+          .filter(o => o.hour > base)
+          .sort((a,b)=> b.hour - a.hour);
+      } else {
+        candidates = candidates
+          .filter(o => o.hour < base)
+          .sort((a,b)=> a.hour - b.hour);
+      }
     }
 
     if (!candidates.length){
