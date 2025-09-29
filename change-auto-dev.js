@@ -35,12 +35,20 @@
     detailedMinute: 0
   };
   let state = loadState();
-  if (!Number.isFinite(Number(state.detailedHour))) {
+  if (state.detailedHour === '' || state.detailedHour === undefined) {
+    state.detailedHour = null;
+  } else if (state.detailedHour === null) {
+    // keep null
+  } else if (!Number.isFinite(Number(state.detailedHour))) {
     state.detailedHour = Number(state.baseHour) || 0;
   } else {
     state.detailedHour = Math.min(23, Math.max(0, Math.floor(Number(state.detailedHour))));
   }
-  if (!Number.isFinite(Number(state.detailedMinute))) {
+  if (state.detailedMinute === '' || state.detailedMinute === undefined) {
+    state.detailedMinute = null;
+  } else if (state.detailedMinute === null) {
+    // keep null
+  } else if (!Number.isFinite(Number(state.detailedMinute))) {
     state.detailedMinute = 0;
   } else {
     state.detailedMinute = Math.min(59, Math.max(0, Math.floor(Number(state.detailedMinute))));
@@ -55,8 +63,9 @@
   const rand = (a,b)=>Math.random()*(b-a)+a;
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const clampInt = (value,min,max)=>{
+    if (value === '' || value === null || value === undefined) return null;
     const n = Math.floor(Number(value));
-    if (!Number.isFinite(n)) return min;
+    if (!Number.isFinite(n)) return null;
     return Math.min(max, Math.max(min, n));
   };
   const isVisible = (el)=>{ const r = el?.getBoundingClientRect?.(); return !!(r && r.width>0 && r.height>0); };
@@ -266,6 +275,8 @@
         state.detailedMinute = detailMinute;
         saveState();
       }
+      const detailHourValue = detailHour === null ? '' : detailHour;
+      const detailMinuteValue = detailMinute === null ? '' : detailMinute;
       box.innerHTML = `
         <div>現在の予約時刻</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
@@ -284,11 +295,11 @@
           </label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:6px;${state.useDetailedTime?'':'opacity:0.5;'}">
             <label style="display:flex;align-items:center;gap:4px;">
-              <input type="number" id="km-detail-hour" min="0" max="23" value="${detailHour}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
+              <input type="number" id="km-detail-hour" min="0" max="23" value="${detailHourValue}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
               <span>時</span>
             </label>
             <label style="display:flex;align-items:center;gap:4px;">
-              <input type="number" id="km-detail-minute" min="0" max="59" value="${detailMinute}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
+              <input type="number" id="km-detail-minute" min="0" max="59" value="${detailMinuteValue}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
               <span>分</span>
             </label>
           </div>
@@ -331,7 +342,7 @@
       if (detailToggle){
         detailToggle.addEventListener('change',()=>{
           state.useDetailedTime = detailToggle.checked;
-          if (state.useDetailedTime && (state.detailedHour === null || Number.isNaN(Number(state.detailedHour)))){
+          if (state.useDetailedTime && (state.detailedHour === null || !Number.isFinite(Number(state.detailedHour)))){
             state.detailedHour = Number(state.baseHour) || 0;
           }
           saveState();
@@ -340,20 +351,40 @@
       }
       if (detailHourInput){
         detailHourInput.addEventListener('change',()=>{
-          const v = clampInt(detailHourInput.value,0,23);
-          detailHourInput.value = v;
-          if (state.detailedHour !== v){
-            state.detailedHour = v;
+          const raw = detailHourInput.value;
+          if (raw === '') {
+            if (state.detailedHour !== null){
+              state.detailedHour = null;
+              saveState();
+            }
+            return;
+          }
+          const v = clampInt(raw,0,23);
+          const applied = v === null ? '' : v;
+          detailHourInput.value = applied;
+          const nextValue = v === null ? null : applied;
+          if (state.detailedHour !== nextValue){
+            state.detailedHour = nextValue;
             saveState();
           }
         });
       }
       if (detailMinuteInput){
         detailMinuteInput.addEventListener('change',()=>{
-          const v = clampInt(detailMinuteInput.value,0,59);
-          detailMinuteInput.value = v;
-          if (state.detailedMinute !== v){
-            state.detailedMinute = v;
+          const raw = detailMinuteInput.value;
+          if (raw === '') {
+            if (state.detailedMinute !== null){
+              state.detailedMinute = null;
+              saveState();
+            }
+            return;
+          }
+          const v = clampInt(raw,0,59);
+          const applied = v === null ? '' : v;
+          detailMinuteInput.value = applied;
+          const nextValue = v === null ? null : applied;
+          if (state.detailedMinute !== nextValue){
+            state.detailedMinute = nextValue;
             saveState();
           }
         });
@@ -537,7 +568,7 @@
       const hour = Number(m[1]);
       const minute = Number(m[2]);
       if (Number.isInteger(hour) && hour>=0 && hour<=23 && Number.isInteger(minute) && minute>=0 && minute<=59){
-        return { hour, minute };
+        return { hour, minute, precise: true };
       }
     }
     m = s.match(/(\d{1,2})時(\d{1,2})分?/);
@@ -545,18 +576,18 @@
       const hour = Number(m[1]);
       const minute = Number(m[2]);
       if (Number.isInteger(hour) && hour>=0 && hour<=23 && Number.isInteger(minute) && minute>=0 && minute<=59){
-        return { hour, minute };
+        return { hour, minute, precise: true };
       }
     }
     m = s.match(/(\d{1,2})時/);
     if (m){
       const hour = Number(m[1]);
       if (Number.isInteger(hour) && hour>=0 && hour<=23){
-        return { hour, minute: 0 };
+        return { hour, minute: 0, precise: false };
       }
     }
     const hour = parseHourFromText(t);
-    if (hour !== null) return { hour, minute: 0 };
+    if (hour !== null) return { hour, minute: 0, precise: false };
     return null;
   }
   function listTimeOptions(menuRoot){
@@ -573,7 +604,8 @@
       const isWheel = /車いす/.test(text); // 車いすは除外
       const startTime = parseStartTimeFromText(text);
       const startMinutes = startTime ? (startTime.hour*60 + startTime.minute) : (hour !== null ? hour*60 : null);
-      results.push({ el, text, hour, disabled, isWheel, startMinutes });
+      const hasMinutePrecision = Boolean(startTime?.precise);
+      results.push({ el, text, hour, disabled, isWheel, startMinutes, hasMinutePrecision });
     }
     return results;
   }
@@ -613,50 +645,77 @@
     const opts = listTimeOptions(menuRoot)
       .filter(o => o.hour !== null && !o.disabled && !o.isWheel);
 
-    const detailHour = clampInt(state.detailedHour, 0, 23);
-    const detailMinute = clampInt(state.detailedMinute, 0, 59);
-    const detailMode = Boolean(state.useDetailedTime);
+    const detailHourRaw = clampInt(state.detailedHour, 0, 23);
+    const detailMinuteRaw = clampInt(state.detailedMinute, 0, 59);
+    const detailMode = Boolean(state.useDetailedTime && detailHourRaw !== null);
+    const detailHour = detailMode ? detailHourRaw : null;
+    const minuteSpecified = detailMode && detailMinuteRaw !== null;
+    const detailMinute = minuteSpecified ? detailMinuteRaw : 0;
     const baseHourForCompare = detailMode ? detailHour : Number(state.baseHour);
     const base = Number(baseHourForCompare);
     const pre19 = !detailMode && base < 0; // -19 等のセンチネル
     const allowedLater = Array.isArray(state.laterAllowedHours)
       ? state.laterAllowedHours.map(Number)
       : [];
-    const detailedEnabled = detailMode;
-    const baseTimeMinutes = detailHour * 60 + detailMinute;
-    const detailCapable = detailedEnabled && opts.some(o => typeof o.startMinutes === 'number');
+    const minutePrecisionAvailable = opts.some(o => o.hasMinutePrecision && typeof o.startMinutes === 'number');
+    const detailCapable = detailMode && minuteSpecified && minutePrecisionAvailable;
+    const baseTimeMinutes = detailMode ? (detailHour * 60 + detailMinute) : null;
 
     let candidates = opts;
+
+    const applyLaterHourFilter = () => {
+      if (allowedLater.length > 0) {
+        candidates = candidates.filter(o => allowedLater.includes(o.hour));
+      }
+    };
 
     if (detailCapable){
       candidates = candidates.filter(o => typeof o.startMinutes === 'number');
       if (state.direction === 'later'){
         if (pre19) candidates = candidates.filter(o => o.hour >= 20);
-        if (allowedLater.length > 0) {
-          candidates = candidates.filter(o => allowedLater.includes(o.hour));
-        }
+        applyLaterHourFilter();
         candidates = candidates
           .filter(o => o.startMinutes > baseTimeMinutes)
-          .sort((a,b)=> b.startMinutes - a.startMinutes);
+          .sort((a,b)=> a.startMinutes - b.startMinutes);
       } else {
         candidates = candidates
           .filter(o => o.startMinutes < baseTimeMinutes)
-          .sort((a,b)=> a.startMinutes - b.startMinutes);
+          .sort((a,b)=> b.startMinutes - a.startMinutes);
       }
-    } else {
+    } else if (!detailMode) {
       candidates = candidates.filter(o => o.hour !== base);
       if (state.direction === 'later'){
         if (pre19) candidates = candidates.filter(o => o.hour >= 20);
-        if (allowedLater.length > 0) {
-          candidates = candidates.filter(o => allowedLater.includes(o.hour));
-        }
+        applyLaterHourFilter();
         candidates = candidates
           .filter(o => o.hour > base)
-          .sort((a,b)=> b.hour - a.hour);
+          .sort((a,b)=> a.hour - b.hour);
       } else {
         candidates = candidates
           .filter(o => o.hour < base)
-          .sort((a,b)=> a.hour - b.hour);
+          .sort((a,b)=> b.hour - a.hour);
+      }
+    } else {
+      const getMinutes = (o)=> typeof o.startMinutes === 'number'
+        ? o.startMinutes
+        : (o.hour !== null ? o.hour*60 : 0);
+      if (state.direction === 'later'){
+        applyLaterHourFilter();
+        candidates = candidates
+          .filter(o => o.hour > detailHour)
+          .sort((a,b)=> getMinutes(a) - getMinutes(b));
+      } else {
+        const sameHour = candidates
+          .filter(o => o.hour === detailHour)
+          .sort((a,b)=> getMinutes(b) - getMinutes(a));
+        const earlierHours = candidates
+          .filter(o => o.hour < detailHour)
+          .sort((a,b)=> getMinutes(b) - getMinutes(a));
+        if (sameHour.length){
+          candidates = sameHour;
+        } else {
+          candidates = earlierHours;
+        }
       }
     }
 
