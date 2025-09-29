@@ -759,6 +759,13 @@
     const allowedLater = Array.isArray(state.laterAllowedHours)
       ? state.laterAllowedHours.map(Number)
       : [];
+    const allowedLaterSet = new Set();
+    for (const h of allowedLater){
+      if (Number.isFinite(h)) allowedLaterSet.add(h);
+    }
+    if (allowedLaterSet.size && targetMode && targetHourRaw !== null){
+      allowedLaterSet.add(targetHourRaw);
+    }
     const minutePrecisionAvailable = opts.some(o => o.hasMinutePrecision && typeof o.startMinutes === 'number');
     const detailCapable = detailMode && minuteSpecified && minutePrecisionAvailable;
     const baseTimeMinutes = detailMode ? (detailHour * 60 + detailMinute) : null;
@@ -769,8 +776,8 @@
     let candidates = opts;
 
     const applyLaterHourFilter = () => {
-      if (allowedLater.length > 0) {
-        candidates = candidates.filter(o => allowedLater.includes(o.hour));
+      if (allowedLaterSet.size > 0) {
+        candidates = candidates.filter(o => allowedLaterSet.has(o.hour));
       }
     };
 
