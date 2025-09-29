@@ -31,7 +31,10 @@
     minReloadIntervalMs: 7000,
     useDetailedTime: false,
     detailedHour: 10,
-    detailedMinute: 0
+    detailedMinute: 0,
+    useTargetTime: false,
+    targetHour: null,
+    targetMinute: null
   };
   let state = loadState();
   if (state.detailedHour === '' || state.detailedHour === undefined) {
@@ -51,6 +54,24 @@
     state.detailedMinute = 0;
   } else {
     state.detailedMinute = Math.min(59, Math.max(0, Math.floor(Number(state.detailedMinute))));
+  }
+  if (state.targetHour === '' || state.targetHour === undefined) {
+    state.targetHour = null;
+  } else if (state.targetHour === null) {
+    // keep null
+  } else if (!Number.isFinite(Number(state.targetHour))) {
+    state.targetHour = Number(state.baseHour) || 0;
+  } else {
+    state.targetHour = Math.min(23, Math.max(0, Math.floor(Number(state.targetHour))));
+  }
+  if (state.targetMinute === '' || state.targetMinute === undefined) {
+    state.targetMinute = null;
+  } else if (state.targetMinute === null) {
+    // keep null
+  } else if (!Number.isFinite(Number(state.targetMinute))) {
+    state.targetMinute = 0;
+  } else {
+    state.targetMinute = Math.min(59, Math.max(0, Math.floor(Number(state.targetMinute))));
   }
   function loadState() {
     try { return Object.assign({}, defaultState, JSON.parse(localStorage.getItem(STATE_KEY) || '{}')); }
@@ -269,13 +290,22 @@
       const box = root.querySelector('#km-time-list');
       const detailHour = clampInt(state.detailedHour, 0, 23);
       const detailMinute = clampInt(state.detailedMinute, 0, 59);
+      const targetHour = clampInt(state.targetHour, 0, 23);
+      const targetMinute = clampInt(state.targetMinute, 0, 59);
       if (detailHour !== state.detailedHour || detailMinute !== state.detailedMinute) {
         state.detailedHour = detailHour;
         state.detailedMinute = detailMinute;
         saveState();
       }
+      if (targetHour !== state.targetHour || targetMinute !== state.targetMinute) {
+        state.targetHour = targetHour;
+        state.targetMinute = targetMinute;
+        saveState();
+      }
       const detailHourValue = detailHour === null ? '' : detailHour;
       const detailMinuteValue = detailMinute === null ? '' : detailMinute;
+      const targetHourValue = targetHour === null ? '' : targetHour;
+      const targetMinuteValue = targetMinute === null ? '' : targetMinute;
       box.innerHTML = `
         <div>現在の予約時刻</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
@@ -299,6 +329,24 @@
             </label>
             <label style="display:flex;align-items:center;gap:4px;">
               <input type="number" id="km-detail-minute" min="0" max="59" value="${detailMinuteValue}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
+              <span>分</span>
+            </label>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">予約したい時間</div>
+        <div>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="km-use-target-time" ${state.useTargetTime?'checked':''}>
+            <span>予約したい時間を指定する</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;${state.useTargetTime?'':'opacity:0.5;'}">
+            <label style="display:flex;align-items:center;gap:4px;">
+              <input type="number" id="km-target-hour" min="0" max="23" value="${targetHourValue}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useTargetTime?'':'disabled'}>
+              <span>時</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;">
+              <input type="number" id="km-target-minute" min="0" max="59" value="${targetMinuteValue}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useTargetTime?'':'disabled'}>
               <span>分</span>
             </label>
           </div>
@@ -338,6 +386,9 @@
       const detailToggle = box.querySelector('#km-use-detailed-time');
       const detailHourInput = box.querySelector('#km-detail-hour');
       const detailMinuteInput = box.querySelector('#km-detail-minute');
+      const targetToggle = box.querySelector('#km-use-target-time');
+      const targetHourInput = box.querySelector('#km-target-hour');
+      const targetMinuteInput = box.querySelector('#km-target-minute');
       if (detailToggle){
         detailToggle.addEventListener('change',()=>{
           state.useDetailedTime = detailToggle.checked;
@@ -384,6 +435,56 @@
           const nextValue = v === null ? null : applied;
           if (state.detailedMinute !== nextValue){
             state.detailedMinute = nextValue;
+            saveState();
+          }
+        });
+      }
+      if (targetToggle){
+        targetToggle.addEventListener('change',()=>{
+          state.useTargetTime = targetToggle.checked;
+          if (state.useTargetTime && (state.targetHour === null || !Number.isFinite(Number(state.targetHour)))){
+            state.targetHour = Number(state.baseHour) || 0;
+          }
+          saveState();
+          renderTimes();
+        });
+      }
+      if (targetHourInput){
+        targetHourInput.addEventListener('change',()=>{
+          const raw = targetHourInput.value;
+          if (raw === '') {
+            if (state.targetHour !== null){
+              state.targetHour = null;
+              saveState();
+            }
+            return;
+          }
+          const v = clampInt(raw,0,23);
+          const applied = v === null ? '' : v;
+          targetHourInput.value = applied;
+          const nextValue = v === null ? null : applied;
+          if (state.targetHour !== nextValue){
+            state.targetHour = nextValue;
+            saveState();
+          }
+        });
+      }
+      if (targetMinuteInput){
+        targetMinuteInput.addEventListener('change',()=>{
+          const raw = targetMinuteInput.value;
+          if (raw === '') {
+            if (state.targetMinute !== null){
+              state.targetMinute = null;
+              saveState();
+            }
+            return;
+          }
+          const v = clampInt(raw,0,59);
+          const applied = v === null ? '' : v;
+          targetMinuteInput.value = applied;
+          const nextValue = v === null ? null : applied;
+          if (state.targetMinute !== nextValue){
+            state.targetMinute = nextValue;
             saveState();
           }
         });
@@ -646,6 +747,8 @@
 
     const detailHourRaw = clampInt(state.detailedHour, 0, 23);
     const detailMinuteRaw = clampInt(state.detailedMinute, 0, 59);
+    const targetHourRaw = clampInt(state.targetHour, 0, 23);
+    const targetMinuteRaw = clampInt(state.targetMinute, 0, 59);
     const detailMode = Boolean(state.useDetailedTime && detailHourRaw !== null);
     const detailHour = detailMode ? detailHourRaw : null;
     const minuteSpecified = detailMode && detailMinuteRaw !== null;
@@ -659,6 +762,9 @@
     const minutePrecisionAvailable = opts.some(o => o.hasMinutePrecision && typeof o.startMinutes === 'number');
     const detailCapable = detailMode && minuteSpecified && minutePrecisionAvailable;
     const baseTimeMinutes = detailMode ? (detailHour * 60 + detailMinute) : null;
+    const targetMode = Boolean(state.useTargetTime && targetHourRaw !== null);
+    const targetMinuteSpecified = targetMode && targetMinuteRaw !== null;
+    const targetMinutes = targetMode ? (targetHourRaw * 60 + (targetMinuteSpecified ? targetMinuteRaw : 0)) : null;
 
     let candidates = opts;
 
@@ -715,6 +821,24 @@
         } else {
           candidates = earlierHours;
         }
+      }
+    }
+
+    if (targetMode){
+      const preciseMatch = targetMinuteSpecified && minutePrecisionAvailable;
+      const matchesTarget = (o) => {
+        if (preciseMatch && typeof o.startMinutes === 'number'){
+          return o.startMinutes === targetMinutes;
+        }
+        return o.hour === targetHourRaw;
+      };
+      const filtered = candidates.filter(matchesTarget);
+      if (filtered.length){
+        candidates = filtered;
+      } else if (!preciseMatch || !candidates.some(o => typeof o.startMinutes === 'number')){
+        candidates = candidates.filter(o => o.hour === targetHourRaw);
+      } else {
+        candidates = filtered; // [] → 空き扱い
       }
     }
 
