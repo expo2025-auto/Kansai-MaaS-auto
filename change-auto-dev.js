@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kansai-MaaS 予約時間変更オート（前/後）Dev
 // @namespace    http://tampermonkey.net/
-// @version      2.6-dev
+// @version      3.0
 // @description  関西MaaSの予約時間を前後にずらす（開発版）
 // @match        https://app.kansai-maas.jp/ticket-managements*
 // @run-at       document-idle
