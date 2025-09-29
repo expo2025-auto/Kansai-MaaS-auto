@@ -10,7 +10,6 @@
 // @downloadURL  https://github.com/expo2025-auto/Kansai-MaaS-auto/raw/refs/heads/main/change-auto-dev.js
 // @supportURL   https://github.com/expo2025-auto/Kansai-MaaS-auto/issues
 // ==/UserScript==
-
 (function () {
   'use strict';
 
@@ -291,7 +290,7 @@
         <div style="margin-top:10px;">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
             <input type="checkbox" id="km-use-detailed-time" ${state.useDetailedTime?'checked':''}>
-            <span>詳細な時間を設定する</span>
+            <span>現在の予約時間を入力する</span>
           </label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:6px;${state.useDetailedTime?'':'opacity:0.5;'}">
             <label style="display:flex;align-items:center;gap:4px;">
@@ -306,7 +305,7 @@
         </div>
 
         ${state.direction==='later' ? `
-        <div style="margin-top:10px;">対象時刻（後ろにずらす時）</div>
+        <div style="margin-top:10px;">予約したい時間指定</div>
         <div style="display:flex;gap:10px;margin-top:4px;">
           ${[20,21].map(h=>`
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
