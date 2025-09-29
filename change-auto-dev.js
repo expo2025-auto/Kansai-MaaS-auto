@@ -271,7 +271,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
           ${times.map(h=>`
             <label style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.08);padding:4px 6px;border-radius:6px;cursor:pointer;">
-              <input type="radio" name="km-base-hour" value="${h}" ${Number(state.baseHour)===h?'checked':''}>
+              <input type="radio" name="km-base-hour" value="${h}" ${(!state.useDetailedTime && Number(state.baseHour)===h)?'checked':''} ${state.useDetailedTime?'disabled':''}>
               <span>${h}時</span>
             </label>
           `).join('')}
@@ -284,11 +284,11 @@
           </label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:6px;${state.useDetailedTime?'':'opacity:0.5;'}">
             <label style="display:flex;align-items:center;gap:4px;">
-              <input type="number" id="km-detail-hour" min="0" max="23" value="${detailHour}" style="width:52px;" ${state.useDetailedTime?'':'disabled'}>
+              <input type="number" id="km-detail-hour" min="0" max="23" value="${detailHour}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
               <span>時</span>
             </label>
             <label style="display:flex;align-items:center;gap:4px;">
-              <input type="number" id="km-detail-minute" min="0" max="59" value="${detailMinute}" style="width:52px;" ${state.useDetailedTime?'':'disabled'}>
+              <input type="number" id="km-detail-minute" min="0" max="59" value="${detailMinute}" style="width:52px;background:#fff;color:#000;border:1px solid rgba(0,0,0,0.3);border-radius:4px;padding:2px 4px;" ${state.useDetailedTime?'':'disabled'}>
               <span>分</span>
             </label>
           </div>
@@ -307,7 +307,14 @@
       `;
       // 基準時刻
       box.querySelectorAll('input[name="km-base-hour"]').forEach(r=>{
-        r.addEventListener('change',()=>{ state.baseHour = Number(r.value); saveState(); });
+        r.addEventListener('change',()=>{
+          state.baseHour = Number(r.value);
+          if (state.useDetailedTime){
+            state.useDetailedTime = false;
+          }
+          saveState();
+          renderTimes();
+        });
       });
       // 後ろ対象時刻
       box.querySelectorAll('.km-later-hour').forEach(ch=>{
@@ -510,7 +517,12 @@
   function parseHourFromText(t){
     if (!t) return null;
     const s = toHalfWidthDigits(t).replace(/\s/g,'');
-    const m = s.match(/(\d{1,2})(?::\d{2})?時台?|(\d{1,2})時台/);
+    let m = s.match(/(\d{1,2})[：:](\d{2})/);
+    if (m){
+      const num = Number(m[1]);
+      if (Number.isInteger(num) && num>=0 && num<=23) return num;
+    }
+    m = s.match(/(\d{1,2})(?::\d{2})?時台?|(\d{1,2})時台/);
     if (m){
       const num = Number(m[1] || m[2]);
       if (Number.isInteger(num) && num>=0 && num<=23) return num;
@@ -601,14 +613,16 @@
     const opts = listTimeOptions(menuRoot)
       .filter(o => o.hour !== null && !o.disabled && !o.isWheel);
 
-    const base = Number(state.baseHour);
-    const pre19 = base < 0; // -19 等のセンチネル
+    const detailHour = clampInt(state.detailedHour, 0, 23);
+    const detailMinute = clampInt(state.detailedMinute, 0, 59);
+    const detailMode = Boolean(state.useDetailedTime);
+    const baseHourForCompare = detailMode ? detailHour : Number(state.baseHour);
+    const base = Number(baseHourForCompare);
+    const pre19 = !detailMode && base < 0; // -19 等のセンチネル
     const allowedLater = Array.isArray(state.laterAllowedHours)
       ? state.laterAllowedHours.map(Number)
       : [];
-    const detailedEnabled = Boolean(state.useDetailedTime) && base >= 0;
-    const detailHour = clampInt(state.detailedHour, 0, 23);
-    const detailMinute = clampInt(state.detailedMinute, 0, 59);
+    const detailedEnabled = detailMode;
     const baseTimeMinutes = detailHour * 60 + detailMinute;
     const detailCapable = detailedEnabled && opts.some(o => typeof o.startMinutes === 'number');
 
