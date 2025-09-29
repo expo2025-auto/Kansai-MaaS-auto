@@ -756,22 +756,24 @@
     const baseHourForCompare = detailMode ? detailHour : Number(state.baseHour);
     const base = Number(baseHourForCompare);
     const pre19 = !detailMode && base < 0; // -19 等のセンチネル
-    const allowedLater = Array.isArray(state.laterAllowedHours)
-      ? state.laterAllowedHours.map(Number)
-      : [];
-    const allowedLaterSet = new Set();
-    for (const h of allowedLater){
-      if (Number.isFinite(h)) allowedLaterSet.add(h);
-    }
-    if (allowedLaterSet.size && targetMode && targetHourRaw !== null){
-      allowedLaterSet.add(targetHourRaw);
-    }
-    const minutePrecisionAvailable = opts.some(o => o.hasMinutePrecision && typeof o.startMinutes === 'number');
-    const detailCapable = detailMode && minuteSpecified && minutePrecisionAvailable;
-    const baseTimeMinutes = detailMode ? (detailHour * 60 + detailMinute) : null;
     const targetMode = Boolean(state.useTargetTime && targetHourRaw !== null);
     const targetMinuteSpecified = targetMode && targetMinuteRaw !== null;
     const targetMinutes = targetMode ? (targetHourRaw * 60 + (targetMinuteSpecified ? targetMinuteRaw : 0)) : null;
+    const allowedLaterRaw = Array.isArray(state.laterAllowedHours)
+      ? state.laterAllowedHours.map(Number)
+      : [];
+    const allowedLaterSet = new Set();
+    for (const h of allowedLaterRaw){
+      if (Number.isFinite(h)) allowedLaterSet.add(h);
+    }
+    const hasLaterHourCheckbox = allowedLaterSet.size > 0;
+    if (targetMode && targetHourRaw !== null){
+      allowedLaterSet.add(targetHourRaw);
+    }
+    const laterUnionWithTarget = targetMode && hasLaterHourCheckbox && targetHourRaw !== null;
+    const minutePrecisionAvailable = opts.some(o => o.hasMinutePrecision && typeof o.startMinutes === 'number');
+    const detailCapable = detailMode && minuteSpecified && minutePrecisionAvailable;
+    const baseTimeMinutes = detailMode ? (detailHour * 60 + detailMinute) : null;
 
     let candidates = opts;
 
@@ -842,10 +844,19 @@
       const filtered = candidates.filter(matchesTarget);
       if (filtered.length){
         candidates = filtered;
-      } else if (!preciseMatch || !candidates.some(o => typeof o.startMinutes === 'number')){
-        candidates = candidates.filter(o => o.hour === targetHourRaw);
       } else {
-        candidates = filtered; // [] → 空き扱い
+        const minuteCapable = candidates.some(o => typeof o.startMinutes === 'number');
+        if (!preciseMatch || !minuteCapable){
+          const sameHour = candidates.filter(o => o.hour === targetHourRaw);
+          if (sameHour.length){
+            candidates = sameHour;
+          } else if (!laterUnionWithTarget){
+            candidates = sameHour; // [] → 空き扱い
+          }
+        } else if (!laterUnionWithTarget){
+          candidates = filtered; // [] → 空き扱い
+        }
+        // laterUnionWithTarget かつ該当候補なしの場合は、20/21時台等の候補を維持
       }
     }
 
