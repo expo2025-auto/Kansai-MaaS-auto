@@ -23,10 +23,10 @@
   /********** 状態 **********/
   const defaultState = {
     running: false,
-    direction: 'earlier',        // 'earlier' or 'later'
-    baseHour: 10,                // 現在の予約時刻（時）/ 負数（例:-19）はセンチネル
-    phase: 'search',             // 'search' | 'finalize'
-    laterAllowedHours: [20,21],  // 後ろにずらす時に対象とする時刻（20/21）
+    direction: 'earlier',
+    baseHour: 10,
+    phase: 'search',
+    laterAllowedHours: [20,21],
     lastReloadAt: 0,
     minReloadIntervalMs: 7000,
     useDetailedTime: false,
